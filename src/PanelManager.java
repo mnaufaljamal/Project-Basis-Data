@@ -248,6 +248,10 @@ public class PanelManager extends JFrame {
                 btn.setBackground(Color.WHITE);
                 btn.setForeground(COLOR_PRIMARY);
                 btn.setOpaque(true);
+            } else if(menu.equals("Transaksi (Struk)")) {
+                btn.setBackground(Color.WHITE);
+                btn.setForeground(COLOR_PRIMARY);
+                btn.setOpaque(true);
             } else {
                 btn.setContentAreaFilled(false);
             }
