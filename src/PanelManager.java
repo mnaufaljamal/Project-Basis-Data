@@ -5,7 +5,7 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 
-public class DashboardPOS extends JFrame {
+public class PanelManager extends JFrame {
 
     private final Color COLOR_PRIMARY = new Color(37, 99, 235); 
     private final Color COLOR_BACKGROUND = new Color(243, 244, 246); 
@@ -16,15 +16,15 @@ public class DashboardPOS extends JFrame {
     private JTable table;
     private DefaultTableModel tableModel;
     
-    private JTextField txtIdBarang, txtNama;
+    private JTextField txtIdBarang, txtNama, searchField ;
     private JComboBox<String> comboCategory;
     private JSpinner spinHarga, spinStok;
-    private JButton btnSimpan, btnBatal, btnHapus, btnTambahBaru;
+    private JButton btnSimpan, btnBatal, btnHapus, btnTambahBaru, btnCari;
     private JLabel lblConfirmDelete;
     
     private String selectedIdBarang = ""; 
 
-    public DashboardPOS() {
+    public PanelManager() {
         setTitle("Frenz Elektronik POS");
         setSize(1200, 760);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -70,6 +70,34 @@ public class DashboardPOS extends JFrame {
             }
         } catch (Exception e) {
             JOptionPane.showMessageDialog(null, "Gagal Menampilkan Data: " + e.getMessage());
+        }
+    }
+
+    private void cariDataBarang() {
+        String keyword = searchField.getText();
+        if (keyword.isEmpty() || keyword.equals("Cari Barang...")) {
+            tampilTabel();
+            return;
+        }
+
+        tableModel.setRowCount(0); 
+        try {
+            String sql = "SELECT * FROM Barang WHERE Nama_Barang LIKE ?";
+            PreparedStatement pst = conn.prepareStatement(sql);
+            pst.setString(1, "%" + keyword + "%");
+            ResultSet rs = pst.executeQuery();
+
+            while (rs.next()) {
+                tableModel.addRow(new Object[]{
+                    rs.getString("ID_Barang"),
+                    rs.getString("Nama_Barang"),
+                    rs.getString("Kategori"),
+                    rs.getString("Harga_Satuan"),
+                    rs.getString("Stok")
+                });
+            }
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Pencarian Gagal: " + ex.getMessage());
         }
     }
 
@@ -176,6 +204,19 @@ public class DashboardPOS extends JFrame {
                 }
             }
         });
+        btnCari.addActionListener(e -> cariDataBarang());
+        searchField.addFocusListener(new FocusAdapter() {
+            public void focusGained(FocusEvent e) {
+                if (searchField.getText().equals("Cari Barang...")) {
+                    searchField.setText("");
+                }
+            }
+            public void focusLost(FocusEvent e) {
+                if (searchField.getText().isEmpty()) {
+                    searchField.setText("Cari Barang...");
+                }
+            }
+        });
     }
 
     private JPanel createSidebar() {
@@ -256,13 +297,21 @@ public class DashboardPOS extends JFrame {
         JPanel topBar = new JPanel(new BorderLayout());
         topBar.setBackground(COLOR_WHITE);
         
-        JTextField searchField = new JTextField("Cari Barang...", 20);
-        topBar.add(searchField, BorderLayout.WEST);
-        topBar.add(Box.createRigidArea(new Dimension(20, 0)));
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        searchPanel.setBackground(COLOR_WHITE);
         
-        btnTambahBaru = new JButton("Tambah Barang Baru");
+        searchField = new JTextField("Cari Barang...", 20);
+        btnCari = new JButton("Cari");
+        btnCari.setBackground(COLOR_PRIMARY);
+        btnCari.setFocusPainted(false);
+        
+        searchPanel.add(searchField);
+        searchPanel.add(btnCari);
+        
+        topBar.add(searchPanel, BorderLayout.WEST);
+        
+        btnTambahBaru = new JButton("Tambah Barang");
         btnTambahBaru.setBackground(COLOR_PRIMARY);
-        btnTambahBaru.setForeground(COLOR_WHITE);
         topBar.add(btnTambahBaru, BorderLayout.EAST);
         
         tablePanel.add(topBar, BorderLayout.NORTH);
@@ -412,7 +461,7 @@ public class DashboardPOS extends JFrame {
         }
 
         SwingUtilities.invokeLater(() -> {
-            new DashboardPOS().setVisible(true);
+            new PanelManager().setVisible(true);
         });
     }
 }
