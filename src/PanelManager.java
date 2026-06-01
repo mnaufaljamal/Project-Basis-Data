@@ -16,11 +16,10 @@ public class PanelManager extends JFrame {
     private JTable table;
     private DefaultTableModel tableModel;
     
-    private JTextField txtIdBarang, txtNama, searchField ;
+    private JTextField txtIdBarang, txtNama, searchField;
     private JComboBox<String> comboCategory;
     private JSpinner spinHarga, spinStok;
-    private JButton btnSimpan, btnBatal, btnHapus, btnTambahBaru, btnCari;
-    private JLabel lblConfirmDelete;
+    private JButton btnSimpan, btnBatal, btnCreate, btnUpdate, btnDelete, btnCari;
     
     private String selectedIdBarang = ""; 
 
@@ -40,13 +39,11 @@ public class PanelManager extends JFrame {
     }
 
     private void koneksiDatabase() {
-        String url = "jdbc:sqlserver://localhost:1433;databaseName=FranzElektronik;encrypt=true;trustServerCertificate=true;";
-        String user = "Kasir1";
-        String password = "12345";
-        
         try {
-            conn = DriverManager.getConnection(url, user, password);
+            conn = KoneksiDatabase.getConnection();
             System.out.println("Terkoneksi ke Database SSMS!");
+        } catch (ClassNotFoundException e) {
+            JOptionPane.showMessageDialog(this, "Driver SQL Server tidak ditemukan: " + e.getMessage());
         } catch (SQLException e) {
             JOptionPane.showMessageDialog(this, "Koneksi Gagal: " + e.getMessage());
         }
@@ -111,97 +108,25 @@ public class PanelManager extends JFrame {
         spinStok.setValue(0);
         selectedIdBarang = "";
         btnSimpan.setText("Simpan"); 
-        lblConfirmDelete.setText("<html><small>Pilih barang di tabel untuk menghapus.</small></html>");
-        btnHapus.setEnabled(false);
     }
 
     private void initEventHandlers() {
         
         table.addMouseListener(new MouseAdapter() {
             public void mouseClicked(MouseEvent evt) {
-                int baris = table.getSelectedRow();
-                if (baris != -1) {
-                    selectedIdBarang = table.getValueAt(baris, 0).toString();
-                    String nama = table.getValueAt(baris, 1).toString();
-                    String kategori = table.getValueAt(baris, 2).toString();
-                    double harga = Double.parseDouble(table.getValueAt(baris, 3).toString());
-                    int stok = Integer.parseInt(table.getValueAt(baris, 4).toString());
-
-                    txtIdBarang.setText(selectedIdBarang);
-                    txtIdBarang.setEditable(false); 
-                    
-                    txtNama.setText(nama);
-                    comboCategory.setSelectedItem(kategori);
-                    spinHarga.setValue(harga);
-                    spinStok.setValue(stok);
-
-                    btnSimpan.setText("Update");
-                    btnHapus.setEnabled(true);
-                    lblConfirmDelete.setText("<html><small>Confirm hapus data Barang<br><b>Nama:</b> " + nama + "<br><b>Kategori:</b> " + kategori + "</small></html>");
-                }
+                updateSelectedBarang();
             }
         });
 
-        btnTambahBaru.addActionListener(e -> resetForm());
-        btnBatal.addActionListener(e -> resetForm());
-
-        btnSimpan.addActionListener(e -> {
-            String inputId = txtIdBarang.getText();
-            String nama = txtNama.getText();
-            String kategori = comboCategory.getSelectedItem().toString();
-            String harga = spinHarga.getValue().toString();
-            String stok = spinStok.getValue().toString();
-
-            if (inputId.isEmpty() || nama.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "ID Barang dan Nama tidak boleh kosong!");
-                return;
-            }
-
-            try {
-                if (btnSimpan.getText().equals("Simpan")) {
-                    String sql = "INSERT INTO Barang (ID_Barang, Nama_Barang, Kategori, Harga_Satuan, Stok) VALUES (?,?,?,?,?)";
-                    PreparedStatement pst = conn.prepareStatement(sql);
-                    pst.setString(1, inputId);
-                    pst.setString(2, nama);
-                    pst.setString(3, kategori);
-                    pst.setString(4, harga);
-                    pst.setString(5, stok);
-                    pst.execute();
-                    JOptionPane.showMessageDialog(null, "Data Berhasil Disimpan!");
-                } else {
-                    String sql = "UPDATE Barang SET Nama_Barang=?, Kategori=?, Harga_Satuan=?, Stok=? WHERE ID_Barang=?";
-                    PreparedStatement pst = conn.prepareStatement(sql);
-                    pst.setString(1, nama);
-                    pst.setString(2, kategori);
-                    pst.setString(3, harga);
-                    pst.setString(4, stok);
-                    pst.setString(5, selectedIdBarang);
-                    pst.execute();
-                    JOptionPane.showMessageDialog(null, "Data Berhasil Diupdate!");
-                }
-                resetForm();
-                tampilTabel();
-            } catch (SQLException ex) {
-                JOptionPane.showMessageDialog(null, "Gagal memproses data: " + ex.getMessage());
+        btnCreate.addActionListener(e -> showBarangDialog(false));
+        btnUpdate.addActionListener(e -> {
+            if (requireSelectedRow()) {
+                showBarangDialog(true);
             }
         });
-
-        btnHapus.addActionListener(e -> {
-            if (selectedIdBarang.isEmpty()) return;
-            
-            int confirm = JOptionPane.showConfirmDialog(this, "Yakin ingin menghapus barang ini?", "Konfirmasi", JOptionPane.YES_NO_OPTION);
-            if (confirm == JOptionPane.YES_OPTION) {
-                try {
-                    String sql = "DELETE FROM Barang WHERE ID_Barang=?";
-                    PreparedStatement pst = conn.prepareStatement(sql);
-                    pst.setString(1, selectedIdBarang);
-                    pst.execute();
-                    JOptionPane.showMessageDialog(null, "Data berhasil dihapus!");
-                    resetForm();
-                    tampilTabel();
-                } catch (Exception ex) {
-                    JOptionPane.showMessageDialog(null, "Gagal menghapus data: " + ex.getMessage());
-                }
+        btnDelete.addActionListener(e -> {
+            if (requireSelectedRow()) {
+                showDeleteDialog();
             }
         });
         btnCari.addActionListener(e -> cariDataBarang());
@@ -248,10 +173,6 @@ public class PanelManager extends JFrame {
                 btn.setBackground(Color.WHITE);
                 btn.setForeground(COLOR_PRIMARY);
                 btn.setOpaque(true);
-            } else if(menu.equals("Transaksi (Struk)")) {
-                btn.setBackground(Color.WHITE);
-                btn.setForeground(COLOR_PRIMARY);
-                btn.setOpaque(true);
             } else {
                 btn.setContentAreaFilled(false);
             }
@@ -266,9 +187,10 @@ public class PanelManager extends JFrame {
         JPanel mainArea = new JPanel(new BorderLayout());
         mainArea.setBackground(COLOR_BACKGROUND);
 
-        JPanel header = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 15));
+        JPanel header = new JPanel(new BorderLayout());
         header.setBackground(COLOR_WHITE);
-        header.add(new JLabel("Kasir: Erfan ▼"));
+        header.setBorder(new EmptyBorder(12, 20, 12, 20));
+        header.add(createCashierProfile(), BorderLayout.EAST);
         mainArea.add(header, BorderLayout.NORTH);
 
         JPanel contentArea = new JPanel(new BorderLayout(20, 20));
@@ -282,12 +204,40 @@ public class PanelManager extends JFrame {
         JPanel splitPanel = new JPanel(new BorderLayout(20, 0));
         splitPanel.setBackground(COLOR_BACKGROUND);
         splitPanel.add(createTablePanel(), BorderLayout.CENTER);
-        splitPanel.add(createFormPanel(), BorderLayout.EAST);
 
         contentArea.add(splitPanel, BorderLayout.CENTER);
         mainArea.add(contentArea, BorderLayout.CENTER);
 
         return mainArea;
+    }
+
+    private JPanel createCashierProfile() {
+        JPanel profile = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        profile.setBackground(COLOR_WHITE);
+
+        JLabel avatar = new JLabel("E", SwingConstants.CENTER);
+        avatar.setPreferredSize(new Dimension(34, 34));
+        avatar.setOpaque(true);
+        avatar.setBackground(COLOR_PRIMARY);
+        avatar.setForeground(COLOR_WHITE);
+        avatar.setFont(new Font("SansSerif", Font.BOLD, 14));
+
+        JPanel textPanel = new JPanel();
+        textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
+        textPanel.setBackground(COLOR_WHITE);
+
+        JLabel nameLabel = new JLabel("Erfan");
+        nameLabel.setFont(new Font("SansSerif", Font.BOLD, 13));
+        JLabel roleLabel = new JLabel("Kasir Aktif");
+        roleLabel.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        roleLabel.setForeground(new Color(100, 116, 139));
+
+        textPanel.add(nameLabel);
+        textPanel.add(roleLabel);
+        profile.add(avatar);
+        profile.add(textPanel);
+        profile.add(new JLabel("▼"));
+        return profile;
     }
 
     private JPanel createTablePanel() {
@@ -306,17 +256,25 @@ public class PanelManager extends JFrame {
         
         searchField = new JTextField("Cari Barang...", 20);
         btnCari = new JButton("Cari");
-        btnCari.setBackground(COLOR_PRIMARY);
-        btnCari.setFocusPainted(false);
+        stylePrimaryButton(btnCari);
         
         searchPanel.add(searchField);
         searchPanel.add(btnCari);
         
         topBar.add(searchPanel, BorderLayout.WEST);
         
-        btnTambahBaru = new JButton("Tambah Barang");
-        btnTambahBaru.setBackground(COLOR_PRIMARY);
-        topBar.add(btnTambahBaru, BorderLayout.EAST);
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        actionPanel.setBackground(COLOR_WHITE);
+        btnCreate = new JButton("Create");
+        btnUpdate = new JButton("Update");
+        btnDelete = new JButton("Delete");
+        stylePrimaryButton(btnCreate);
+        styleSecondaryButton(btnUpdate);
+        styleDangerButton(btnDelete);
+        actionPanel.add(btnCreate);
+        actionPanel.add(btnUpdate);
+        actionPanel.add(btnDelete);
+        topBar.add(actionPanel, BorderLayout.EAST);
         
         tablePanel.add(topBar, BorderLayout.NORTH);
 
@@ -329,6 +287,9 @@ public class PanelManager extends JFrame {
         };
         table = new JTable(tableModel);
         table.setRowHeight(30);
+        table.setFillsViewportHeight(true);
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         table.getTableHeader().setBackground(new Color(226, 232, 240));
         table.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 12));
         
@@ -341,7 +302,7 @@ public class PanelManager extends JFrame {
     private JPanel createFormPanel() {
         JPanel rightContainer = new JPanel();
         rightContainer.setLayout(new BoxLayout(rightContainer, BoxLayout.Y_AXIS));
-        rightContainer.setBackground(COLOR_BACKGROUND);
+        rightContainer.setBackground(COLOR_WHITE);
         rightContainer.setPreferredSize(new Dimension(300, 0));
 
         JLabel titleLabel = new JLabel("Manajemen Data Barang");
@@ -408,7 +369,7 @@ public class PanelManager extends JFrame {
         actionPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         
         btnSimpan = new JButton("Simpan");
-        btnSimpan.setBackground(COLOR_PRIMARY);
+        stylePrimaryButton(btnSimpan);
         btnBatal = new JButton("Batal");
         
         actionPanel.add(btnSimpan);
@@ -417,44 +378,175 @@ public class PanelManager extends JFrame {
         formPanel.add(actionPanel);
 
         rightContainer.add(formPanel);
-        rightContainer.add(Box.createRigidArea(new Dimension(0, 15)));
-
-        JPanel deletePanel = new JPanel();
-        deletePanel.setLayout(new BoxLayout(deletePanel, BoxLayout.Y_AXIS));
-        deletePanel.setBackground(COLOR_WHITE);
-        deletePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        deletePanel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(220, 220, 220), 1),
-            new EmptyBorder(15, 15, 15, 15)
-        ));
-
-        JLabel deleteTitle = new JLabel("Hapus Data Barang");
-        deleteTitle.setFont(new Font("SansSerif", Font.BOLD, 14));
-        deleteTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
-        deletePanel.add(deleteTitle);
-        deletePanel.add(Box.createRigidArea(new Dimension(0, 10)));
-        
-        lblConfirmDelete = new JLabel("<html><small>Pilih barang di tabel untuk menghapus.</small></html>");
-        lblConfirmDelete.setAlignmentX(Component.LEFT_ALIGNMENT);
-        deletePanel.add(lblConfirmDelete);
-        deletePanel.add(Box.createRigidArea(new Dimension(0, 15)));
-
-        btnHapus = new JButton("Hapus Permanen");
-        btnHapus.setBackground(new Color(220, 38, 38)); 
-        btnHapus.setForeground(COLOR_WHITE);
-        btnHapus.setAlignmentX(Component.LEFT_ALIGNMENT);
-        btnHapus.setMaximumSize(new Dimension(Integer.MAX_VALUE, 35));
-        btnHapus.setOpaque(true);
-        btnHapus.setContentAreaFilled(true);
-        btnHapus.setBorderPainted(false);
-        btnHapus.setEnabled(false); 
-        
-        deletePanel.add(btnHapus);
-
-        rightContainer.add(deletePanel);
-        rightContainer.add(Box.createVerticalGlue());
-
         return rightContainer;
+    }
+
+    private void showBarangDialog(boolean isUpdate) {
+        JDialog dialog = new JDialog(this, isUpdate ? "Update Barang" : "Create Barang", true);
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        dialog.setContentPane(createFormPanel());
+        dialog.pack();
+        dialog.setSize(340, isUpdate ? 410 : 390);
+        dialog.setLocationRelativeTo(this);
+
+        if (isUpdate) {
+            fillFormFromSelectedRow();
+            btnSimpan.setText("Update");
+            txtIdBarang.setEditable(false);
+        } else {
+            resetForm();
+            btnSimpan.setText("Simpan");
+        }
+
+        btnBatal.addActionListener(e -> dialog.dispose());
+        btnSimpan.addActionListener(e -> {
+            if (saveBarang(isUpdate)) {
+                dialog.dispose();
+            }
+        });
+        dialog.setVisible(true);
+    }
+
+    private void showDeleteDialog() {
+        int row = table.getSelectedRow();
+        String nama = table.getValueAt(row, 1).toString();
+        String kategori = table.getValueAt(row, 2).toString();
+
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(COLOR_WHITE);
+        panel.setBorder(new EmptyBorder(18, 18, 18, 18));
+        panel.add(makeDialogTitle("Hapus Data Barang"));
+        panel.add(Box.createRigidArea(new Dimension(0, 12)));
+        panel.add(new JLabel("<html>Yakin ingin menghapus barang ini?<br><br><b>Nama:</b> " + nama + "<br><b>Kategori:</b> " + kategori + "</html>"));
+        panel.add(Box.createRigidArea(new Dimension(0, 18)));
+
+        JButton cancelButton = new JButton("Batal");
+        JButton deleteButton = new JButton("Delete");
+        styleDangerButton(deleteButton);
+
+        JDialog dialog = new JDialog(this, "Delete Barang", true);
+        JPanel actions = new JPanel(new GridLayout(1, 2, 10, 0));
+        actions.setBackground(COLOR_WHITE);
+        actions.add(deleteButton);
+        actions.add(cancelButton);
+        panel.add(actions);
+
+        cancelButton.addActionListener(e -> dialog.dispose());
+        deleteButton.addActionListener(e -> {
+            try {
+                String sql = "DELETE FROM Barang WHERE ID_Barang=?";
+                PreparedStatement pst = conn.prepareStatement(sql);
+                pst.setString(1, selectedIdBarang);
+                pst.execute();
+                JOptionPane.showMessageDialog(this, "Data berhasil dihapus!");
+                selectedIdBarang = "";
+                tampilTabel();
+                dialog.dispose();
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Gagal menghapus data: " + ex.getMessage());
+            }
+        });
+
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        dialog.setContentPane(panel);
+        dialog.pack();
+        dialog.setSize(330, 250);
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
+    }
+
+    private boolean saveBarang(boolean isUpdate) {
+        String inputId = txtIdBarang.getText().trim();
+        String nama = txtNama.getText().trim();
+        String kategori = comboCategory.getSelectedItem().toString();
+        String harga = spinHarga.getValue().toString();
+        String stok = spinStok.getValue().toString();
+
+        if (inputId.isEmpty() || nama.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "ID Barang dan Nama tidak boleh kosong!");
+            return false;
+        }
+
+        try {
+            if (!isUpdate) {
+                String sql = "INSERT INTO Barang (ID_Barang, Nama_Barang, Kategori, Harga_Satuan, Stok) VALUES (?,?,?,?,?)";
+                PreparedStatement pst = conn.prepareStatement(sql);
+                pst.setString(1, inputId);
+                pst.setString(2, nama);
+                pst.setString(3, kategori);
+                pst.setString(4, harga);
+                pst.setString(5, stok);
+                pst.execute();
+                JOptionPane.showMessageDialog(this, "Data berhasil disimpan!");
+            } else {
+                String sql = "UPDATE Barang SET Nama_Barang=?, Kategori=?, Harga_Satuan=?, Stok=? WHERE ID_Barang=?";
+                PreparedStatement pst = conn.prepareStatement(sql);
+                pst.setString(1, nama);
+                pst.setString(2, kategori);
+                pst.setString(3, harga);
+                pst.setString(4, stok);
+                pst.setString(5, selectedIdBarang);
+                pst.execute();
+                JOptionPane.showMessageDialog(this, "Data berhasil diupdate!");
+            }
+            tampilTabel();
+            return true;
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Gagal memproses data: " + ex.getMessage());
+            return false;
+        }
+    }
+
+    private boolean requireSelectedRow() {
+        updateSelectedBarang();
+        if (selectedIdBarang.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Pilih satu barang di tabel terlebih dahulu.");
+            return false;
+        }
+        return true;
+    }
+
+    private void updateSelectedBarang() {
+        int row = table.getSelectedRow();
+        selectedIdBarang = row == -1 ? "" : table.getValueAt(row, 0).toString();
+    }
+
+    private void fillFormFromSelectedRow() {
+        int row = table.getSelectedRow();
+        txtIdBarang.setText(table.getValueAt(row, 0).toString());
+        txtNama.setText(table.getValueAt(row, 1).toString());
+        comboCategory.setSelectedItem(table.getValueAt(row, 2).toString());
+        spinHarga.setValue(Double.parseDouble(table.getValueAt(row, 3).toString()));
+        spinStok.setValue(Integer.parseInt(table.getValueAt(row, 4).toString()));
+    }
+
+    private JLabel makeDialogTitle(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("SansSerif", Font.BOLD, 16));
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        return label;
+    }
+
+    private void stylePrimaryButton(JButton button) {
+        button.setBackground(COLOR_PRIMARY);
+        button.setForeground(COLOR_WHITE);
+        button.setFocusPainted(false);
+        button.setOpaque(true);
+    }
+
+    private void styleSecondaryButton(JButton button) {
+        button.setBackground(new Color(226, 232, 240));
+        button.setForeground(new Color(30, 41, 59));
+        button.setFocusPainted(false);
+        button.setOpaque(true);
+    }
+
+    private void styleDangerButton(JButton button) {
+        button.setBackground(new Color(220, 38, 38));
+        button.setForeground(COLOR_WHITE);
+        button.setFocusPainted(false);
+        button.setOpaque(true);
     }
 
     public static void main(String[] args) {
