@@ -2,6 +2,11 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.awt.event.*;
+import java.sql.*;
+import java.util.ArrayList;
 
 public class Transaksi extends JPanel {
 
@@ -23,6 +28,14 @@ public class Transaksi extends JPanel {
         
         add(createHeader(), BorderLayout.NORTH);
         add(createContentArea(), BorderLayout.CENTER);
+
+        // wire payment actions
+        btnProses.addActionListener(e -> showPaymentDialog());
+        btnBatalTrx.addActionListener(e -> {
+            if (transaksiTableModel != null) transaksiTableModel.setRowCount(0);
+            resetForm();
+        });
+        btnTambahPesanan.addActionListener(e -> showProductSearchDialog());
     }
 
 
@@ -85,8 +98,7 @@ public class Transaksi extends JPanel {
         transaksiTable.getTableHeader().setBackground(new Color(226, 232, 240));
         transaksiTable.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 12));
 
-        transaksiTableModel.addRow(new Object[]{"1", "KABEL 2M", "KABEL HDMI 2M", "2", "30.000", "0", "60.000", "🗑"});
-        transaksiTableModel.addRow(new Object[]{"2", "BT-SPK", "SPEAKER BLUETOOTH", "1", "150.000", "0", "150.000", "🗑"});
+        // initially empty; items should be added from product selection or DB
 
         tablePanel.add(new JScrollPane(transaksiTable), BorderLayout.CENTER);
         return tablePanel;
@@ -190,6 +202,7 @@ public class Transaksi extends JPanel {
 
         return paymentPanel;
     }
+    
 
     private JPanel createSummaryPanel() {
         JPanel summaryPanel = new JPanel();
@@ -217,23 +230,51 @@ public class Transaksi extends JPanel {
         summaryPanel.add(summaryDetails);
         summaryPanel.add(Box.createRigidArea(new Dimension(0, 15)));
 
-        JPanel actionPanel = new JPanel(new GridLayout(2, 1, 0, 10));
+        JPanel actionPanel = new JPanel();
+        actionPanel.setLayout(new BoxLayout(actionPanel, BoxLayout.Y_AXIS));
         actionPanel.setBackground(COLOR_WHITE);
         actionPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        
-        btnProses = new JButton("Proses Transaksi");
+
+        btnProses = new JButton("Proses Transaksi") {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getBackground());
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
         btnProses.setBackground(COLOR_PRIMARY);
         btnProses.setForeground(COLOR_WHITE);
-        btnProses.setOpaque(true);
-        
-        btnBatalTrx = new JButton("Batal Transaksi");
+        btnProses.setFocusPainted(false);
+        btnProses.setBorder(new EmptyBorder(8, 12, 8, 12));
+        btnProses.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        btnProses.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        btnBatalTrx = new JButton("Batal Transaksi") {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getBackground());
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+                g2.dispose();
+                super.paintComponent(g);
+            }
+        };
         btnBatalTrx.setBackground(new Color(220, 38, 38));
         btnBatalTrx.setForeground(COLOR_WHITE);
-        btnBatalTrx.setOpaque(true);
-        
+        btnBatalTrx.setFocusPainted(false);
+        btnBatalTrx.setBorder(new EmptyBorder(8, 12, 8, 12));
+        btnBatalTrx.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        btnBatalTrx.setAlignmentX(Component.CENTER_ALIGNMENT);
+
         actionPanel.add(btnProses);
+        actionPanel.add(Box.createRigidArea(new Dimension(0, 10)));
         actionPanel.add(btnBatalTrx);
-        actionPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 80));
+        actionPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 96));
         summaryPanel.add(actionPanel);
 
         return summaryPanel;
@@ -280,6 +321,212 @@ public class Transaksi extends JPanel {
         txtKembalian.setText("");
         lblTotalItem.setText("0");
         lblGrandTotal.setText("Rp 0");
+    }
+
+    private long parseRupiah(String s) {
+        if (s == null) return 0;
+        String digits = s.replaceAll("[^0-9]", "");
+        if (digits.isEmpty()) return 0;
+        try { return Long.parseLong(digits); } catch (NumberFormatException e) { return 0; }
+    }
+
+    private String formatRupiah(long value) {
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols();
+        symbols.setGroupingSeparator('.');
+        DecimalFormat df = new DecimalFormat("#,###", symbols);
+        return "Rp " + df.format(value);
+    }
+
+    private void showPaymentDialog() {
+        long grand = parseRupiah(lblGrandTotal.getText());
+
+        JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(this), "Pembayaran", Dialog.ModalityType.APPLICATION_MODAL);
+        JPanel p = new JPanel();
+        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+        p.setBorder(new EmptyBorder(12,12,12,12));
+        p.setBackground(COLOR_WHITE);
+
+        JLabel lbl = new JLabel("Total: " + formatRupiah(grand));
+        lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+        p.add(lbl);
+        p.add(Box.createRigidArea(new Dimension(0,10)));
+
+        p.add(new JLabel("Metode Pembayaran"));
+        JComboBox<String> cb = new JComboBox<>(new String[]{"Tunai","Debit","Kredit","QRIS"});
+        cb.setAlignmentX(Component.LEFT_ALIGNMENT);
+        p.add(cb);
+        p.add(Box.createRigidArea(new Dimension(0,10)));
+
+        p.add(new JLabel("Jumlah Bayar"));
+        JTextField txtBayar = new JTextField();
+        txtBayar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+        p.add(txtBayar);
+        p.add(Box.createRigidArea(new Dimension(0,10)));
+
+        JLabel lblKembalian = new JLabel("Kembalian: Rp 0");
+        lblKembalian.setAlignmentX(Component.LEFT_ALIGNMENT);
+        p.add(lblKembalian);
+        p.add(Box.createRigidArea(new Dimension(0,12)));
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        actions.setBackground(COLOR_WHITE);
+        JButton ok = new JButton("Bayar");
+        ok.setBackground(COLOR_PRIMARY);
+        ok.setForeground(COLOR_WHITE);
+        JButton cancel = new JButton("Batal");
+        cancel.setBackground(new Color(220,38,38));
+        cancel.setForeground(COLOR_WHITE);
+        actions.add(ok);
+        actions.add(cancel);
+        p.add(actions);
+
+        txtBayar.getDocument().addDocumentListener(new javax.swing.event.DocumentListener(){
+            public void insertUpdate(javax.swing.event.DocumentEvent e){ update(); }
+            public void removeUpdate(javax.swing.event.DocumentEvent e){ update(); }
+            public void changedUpdate(javax.swing.event.DocumentEvent e){ update(); }
+            private void update(){
+                String val = txtBayar.getText().replaceAll("[^0-9]", "");
+                long bayar = 0;
+                if (!val.isEmpty()){
+                    try{ bayar = Long.parseLong(val); } catch(Exception ex){ bayar = 0; }
+                }
+                long k = bayar - grand;
+                lblKembalian.setText("Kembalian: " + (k < 0 ? "Rp 0" : formatRupiah(k)));
+            }
+        });
+
+        ok.addActionListener(e -> {
+            String val = txtBayar.getText().replaceAll("[^0-9]", "");
+            long bayar = 0;
+            if (!val.isEmpty()) try{ bayar = Long.parseLong(val); } catch(Exception ex){ bayar = 0; }
+            if (bayar < grand) {
+                JOptionPane.showMessageDialog(dialog, "Jumlah bayar kurang!");
+                return;
+            }
+            long k = bayar - grand;
+            JOptionPane.showMessageDialog(dialog, "Pembayaran berhasil. Kembalian: " + formatRupiah(k));
+            // clear transaksi
+            transaksiTableModel.setRowCount(0);
+            resetForm();
+            dialog.dispose();
+        });
+
+        cancel.addActionListener(e -> dialog.dispose());
+
+        dialog.setContentPane(p);
+        dialog.pack();
+        dialog.setSize(360, 260);
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
+    }
+
+    private void showProductSearchDialog() {
+        JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(this), "Pilih Produk", Dialog.ModalityType.APPLICATION_MODAL);
+        JPanel p = new JPanel(new BorderLayout(8,8));
+        p.setBorder(new EmptyBorder(12,12,12,12));
+
+        JPanel top = new JPanel(new BorderLayout(6,6));
+        top.setBackground(COLOR_WHITE);
+        JTextField search = new JTextField();
+        JButton btnSearch = new JButton("Cari");
+        top.add(search, BorderLayout.CENTER);
+        top.add(btnSearch, BorderLayout.EAST);
+
+        String[] cols = {"ID_Barang","Nama_Barang","Kategori","Harga_Satuan","Stok"};
+        DefaultTableModel prodModel = new DefaultTableModel(new Object[][]{}, cols) {
+            @Override public boolean isCellEditable(int r,int c){return false;}
+        };
+        JTable prodTable = new JTable(prodModel);
+        prodTable.setRowHeight(26);
+
+        // load initially
+        loadProductsToModel(prodModel, "");
+
+        btnSearch.addActionListener(e -> loadProductsToModel(prodModel, search.getText()));
+
+        p.add(top, BorderLayout.NORTH);
+        p.add(new JScrollPane(prodTable), BorderLayout.CENTER);
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton tambah = new JButton("Tambah");
+        JButton batal = new JButton("Batal");
+        actions.add(tambah);
+        actions.add(batal);
+        p.add(actions, BorderLayout.SOUTH);
+
+        tambah.addActionListener(e -> {
+            int r = prodTable.getSelectedRow();
+            if (r == -1) { JOptionPane.showMessageDialog(dialog, "Pilih produk terlebih dahulu"); return; }
+            String id = prodModel.getValueAt(r, 0).toString();
+            String name = prodModel.getValueAt(r, 1).toString();
+            String priceStr = prodModel.getValueAt(r, 3).toString();
+            long price = parseRupiah(priceStr);
+            int qty = 1;
+            String hargaDisplay = formatRupiah(price);
+            String subtotal = formatRupiah(price * qty);
+            String aksi = "Hapus";
+            int no = transaksiTableModel.getRowCount() + 1;
+            transaksiTableModel.addRow(new Object[]{String.valueOf(no), id, name, String.valueOf(qty), hargaDisplay, "0", subtotal, aksi});
+            computeTotals();
+            dialog.dispose();
+        });
+
+        batal.addActionListener(e -> dialog.dispose());
+
+        // handle delete clicks in transaksi table
+        transaksiTable.addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent me) {
+                int col = transaksiTable.columnAtPoint(me.getPoint());
+                int row = transaksiTable.rowAtPoint(me.getPoint());
+                if (col == 7 && row != -1) {
+                    transaksiTableModel.removeRow(row);
+                    // renumber
+                    for (int i = 0; i < transaksiTableModel.getRowCount(); i++) {
+                        transaksiTableModel.setValueAt(String.valueOf(i+1), i, 0);
+                    }
+                    computeTotals();
+                }
+            }
+        });
+
+        dialog.setContentPane(p);
+        dialog.setSize(720, 420);
+        dialog.setLocationRelativeTo(this);
+        dialog.setVisible(true);
+    }
+
+    private void loadProductsToModel(DefaultTableModel model, String keyword) {
+        model.setRowCount(0);
+        try (Connection c = KoneksiDatabase.getConnection()) {
+            String sql = "SELECT ID_Barang, Nama_Barang, Kategori, Harga_Satuan, Stok FROM Barang" + (keyword == null || keyword.isEmpty() ? "" : " WHERE Nama_Barang LIKE ?");
+            try (PreparedStatement pst = c.prepareStatement(sql)) {
+                if (keyword != null && !keyword.isEmpty()) pst.setString(1, "%" + keyword + "%");
+                try (ResultSet rs = pst.executeQuery()) {
+                    while (rs.next()) {
+                        model.addRow(new Object[]{rs.getString("ID_Barang"), rs.getString("Nama_Barang"), rs.getString("Kategori"), rs.getString("Harga_Satuan"), rs.getString("Stok")});
+                    }
+                }
+            }
+        } catch (ClassNotFoundException cnf) {
+            JOptionPane.showMessageDialog(this, "Driver JDBC tidak ditemukan: " + cnf.getMessage());
+        } catch (SQLException ex) {
+            JOptionPane.showMessageDialog(this, "Gagal memuat produk: " + ex.getMessage());
+        }
+    }
+
+    private void computeTotals() {
+        int totalItems = 0;
+        long grand = 0;
+        for (int i = 0; i < transaksiTableModel.getRowCount(); i++) {
+            int qty = 0; try { qty = Integer.parseInt(transaksiTableModel.getValueAt(i, 3).toString()); } catch(Exception e) { qty = 0; }
+            long harga = parseRupiah(transaksiTableModel.getValueAt(i, 4).toString());
+            long subtotal = harga * qty;
+            transaksiTableModel.setValueAt(formatRupiah(subtotal), i, 6);
+            totalItems += qty;
+            grand += subtotal;
+        }
+        setTotalItem(totalItems);
+        setGrandTotal(formatRupiah(grand));
     }
 
     

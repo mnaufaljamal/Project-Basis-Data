@@ -4,6 +4,8 @@ import java.sql.*;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
+import java.util.HashMap;
+import java.util.Map;
 
 public class PanelManager extends JFrame {
 
@@ -15,6 +17,10 @@ public class PanelManager extends JFrame {
     
     private JTable table;
     private DefaultTableModel tableModel;
+    private CardLayout cardLayout;
+    private JPanel mainContent;
+    private Map<String, JButton> menuButtons = new HashMap<>();
+    private Transaksi transaksiPanel;
     
     private JTextField txtIdBarang, txtNama, searchField;
     private JComboBox<String> comboCategory;
@@ -29,6 +35,10 @@ public class PanelManager extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
+
+        // prepare card layout container before building sidebar
+        cardLayout = new CardLayout();
+        mainContent = new JPanel(cardLayout);
 
         add(createSidebar(), BorderLayout.WEST);
         add(createMainArea(), BorderLayout.CENTER);
@@ -158,29 +168,68 @@ public class PanelManager extends JFrame {
         sidebar.add(titleLabel);
         sidebar.add(Box.createRigidArea(new Dimension(0, 30)));
 
-        String[] menus = {"Dashboard", "Manajemen Barang", "Transaksi (Struk)", "Laporan", "Pengaturan"};
+        String[] menus = {"Manajemen Barang", "Transaksi (Struk)", "Laporan"};
         for (String menu : menus) {
             JButton btn = new JButton(menu);
-            btn.setMaximumSize(new Dimension(200, 40));
+            btn.setMaximumSize(new Dimension(220, 48));
+            btn.setPreferredSize(new Dimension(220, 48));
             btn.setHorizontalAlignment(SwingConstants.LEFT);
             btn.setAlignmentX(Component.LEFT_ALIGNMENT);
             btn.setBackground(COLOR_PRIMARY);
             btn.setForeground(Color.WHITE);
             btn.setFocusPainted(false);
-            btn.setBorder(new EmptyBorder(10, 15, 10, 15));
-            
-            if (menu.equals("Manajemen Barang")) {
-                btn.setBackground(Color.WHITE);
-                btn.setForeground(COLOR_PRIMARY);
-                btn.setOpaque(true);
-            } else {
-                btn.setContentAreaFilled(false);
-            }
-            
+            btn.setBorder(new EmptyBorder(10, 12, 10, 12));
+            btn.setContentAreaFilled(false);
+
+            menuButtons.put(menu, btn);
+            btn.addActionListener(e -> handleMenuClick(menu));
             sidebar.add(btn);
-            sidebar.add(Box.createRigidArea(new Dimension(0, 5)));
+            sidebar.add(Box.createRigidArea(new Dimension(0, 8)));
         }
+        // set initial selected menu style
+        applySelectedStyle("Manajemen Barang");
         return sidebar;
+    }
+
+    private void handleMenuClick(String menu) {
+        // update cards and selected styles
+        switch (menu) {
+            case "Manajemen Barang":
+                cardLayout.show(mainContent, "manajemen");
+                break;
+            case "Transaksi (Struk)":
+                cardLayout.show(mainContent, "transaksi");
+                break;
+            
+            case "Laporan":
+                cardLayout.show(mainContent, "laporan");
+                break;
+            default:
+                break;
+        }
+        applySelectedStyle(menu);
+    }
+
+    private void applySelectedStyle(String selectedMenu) {
+        for (Map.Entry<String, JButton> e : menuButtons.entrySet()) {
+            JButton b = e.getValue();
+            if (e.getKey().equals(selectedMenu)) {
+                b.setBackground(new Color(219, 234, 254)); // light blue
+                b.setForeground(COLOR_PRIMARY);
+                b.setOpaque(true);
+                b.setContentAreaFilled(true);
+                b.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createMatteBorder(0, 4, 0, 0, new Color(59, 130, 246)),
+                    new EmptyBorder(10, 12, 10, 12)
+                ));
+            } else {
+                b.setBackground(COLOR_PRIMARY);
+                b.setForeground(Color.WHITE);
+                b.setOpaque(true);
+                b.setContentAreaFilled(false);
+                b.setBorder(new EmptyBorder(10, 12, 10, 12));
+            }
+        }
     }
 
     private JPanel createMainArea() {
@@ -193,6 +242,26 @@ public class PanelManager extends JFrame {
         header.add(createCashierProfile(), BorderLayout.EAST);
         mainArea.add(header, BorderLayout.NORTH);
 
+        // prepare cards: manajemen (default) and transaksi + placeholders
+        mainContent.setBackground(COLOR_BACKGROUND);
+
+        // Manajemen Barang card
+        mainContent.add(createManajemenPanel(), "manajemen");
+
+        // Transaksi card (reuse Transaksi JPanel)
+        transaksiPanel = new Transaksi();
+        mainContent.add(transaksiPanel, "transaksi");
+
+        // Placeholder for Laporan
+        mainContent.add(makePlaceholderPanel("Laporan"), "laporan");
+
+        cardLayout.show(mainContent, "manajemen");
+
+        mainArea.add(mainContent, BorderLayout.CENTER);
+        return mainArea;
+    }
+
+    private JPanel createManajemenPanel() {
         JPanel contentArea = new JPanel(new BorderLayout(20, 20));
         contentArea.setBorder(new EmptyBorder(20, 20, 20, 20));
         contentArea.setBackground(COLOR_BACKGROUND);
@@ -204,11 +273,20 @@ public class PanelManager extends JFrame {
         JPanel splitPanel = new JPanel(new BorderLayout(20, 0));
         splitPanel.setBackground(COLOR_BACKGROUND);
         splitPanel.add(createTablePanel(), BorderLayout.CENTER);
+        splitPanel.add(createFormPanel(), BorderLayout.EAST);
 
         contentArea.add(splitPanel, BorderLayout.CENTER);
-        mainArea.add(contentArea, BorderLayout.CENTER);
+        return contentArea;
+    }
 
-        return mainArea;
+    private JPanel makePlaceholderPanel(String title) {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setBackground(COLOR_BACKGROUND);
+        JLabel lbl = new JLabel(title);
+        lbl.setFont(new Font("SansSerif", Font.BOLD, 24));
+        lbl.setHorizontalAlignment(SwingConstants.CENTER);
+        p.add(lbl, BorderLayout.CENTER);
+        return p;
     }
 
     private JPanel createCashierProfile() {
