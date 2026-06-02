@@ -8,7 +8,7 @@ import java.awt.event.*;
 import java.sql.*;
 import java.util.ArrayList;
 
-public class Transaksi extends JPanel {
+public class PanelTransaksi extends JPanel {
 
     private final Color COLOR_PRIMARY = new Color(37, 99, 235);
     private final Color COLOR_BACKGROUND = new Color(243, 244, 246);
@@ -17,12 +17,13 @@ public class Transaksi extends JPanel {
     private DefaultTableModel transaksiTableModel;
     private JTable transaksiTable;
     private JLabel lblTotalItem, lblGrandTotal;
+    private JLabel lblSubtotal, lblTotalDiskon, lblPajak;
     private JTextField txtCustomerSearch, txtCustomerName, txtPhone;
     private JComboBox<String> comboPayment;
     private JTextField txtJumlahBayar, txtKembalian;
     private JButton btnTambahPesanan, btnProses, btnBatalTrx;
 
-    public Transaksi() {
+    public PanelTransaksi() {
         setLayout(new BorderLayout());
         setBackground(COLOR_BACKGROUND);
         
@@ -30,7 +31,7 @@ public class Transaksi extends JPanel {
         add(createContentArea(), BorderLayout.CENTER);
 
         // wire payment actions
-        btnProses.addActionListener(e -> showPaymentDialog());
+        btnProses.addActionListener(e -> processPaymentFromPanel());
         btnBatalTrx.addActionListener(e -> {
             if (transaksiTableModel != null) transaksiTableModel.setRowCount(0);
             resetForm();
@@ -40,15 +41,16 @@ public class Transaksi extends JPanel {
 
 
     private JPanel createHeader() {
-        JPanel header = new JPanel(new FlowLayout(FlowLayout.RIGHT, 15, 15));
+        JPanel header = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 4));
         header.setBackground(COLOR_WHITE);
-        header.add(new JLabel("Kasir: Erfan ▼"));
+        // header kasir removed (managed in main frame)
+        header.setPreferredSize(new Dimension(0, 8));
         return header;
     }
 
     private JPanel createContentArea() {
-        JPanel contentArea = new JPanel(new BorderLayout(20, 20));
-        contentArea.setBorder(new EmptyBorder(20, 20, 20, 20));
+        JPanel contentArea = new JPanel(new BorderLayout(20, 12));
+        contentArea.setBorder(new EmptyBorder(8, 20, 20, 20));
         contentArea.setBackground(COLOR_BACKGROUND);
 
         JLabel pageTitle = new JLabel("Input Pesanan Transaksi Baru (POS)");
@@ -218,13 +220,19 @@ public class Transaksi extends JPanel {
         summaryDetails.setBackground(COLOR_WHITE);
         summaryDetails.setMaximumSize(new Dimension(Integer.MAX_VALUE, 120));
         summaryDetails.add(new JLabel("Subtotal"));
-        summaryDetails.add(new JLabel("Rp 210.000"));
+        lblSubtotal = new JLabel("Rp 0");
+        summaryDetails.add(lblSubtotal);
+
         summaryDetails.add(new JLabel("Total Diskon"));
-        summaryDetails.add(new JLabel("Rp 0"));
+        lblTotalDiskon = new JLabel("Rp 0");
+        summaryDetails.add(lblTotalDiskon);
+
         summaryDetails.add(new JLabel("Pajak (PPN 11%)"));
-        summaryDetails.add(new JLabel("Rp 23.100"));
+        lblPajak = new JLabel("Rp 0");
+        summaryDetails.add(lblPajak);
+
         summaryDetails.add(new JLabel("Grand Total"));
-        lblGrandTotal = new JLabel("Rp 233.100");
+        lblGrandTotal = new JLabel("Rp 0");
         lblGrandTotal.setFont(new Font("SansSerif", Font.BOLD, 14));
         summaryDetails.add(lblGrandTotal);
         summaryPanel.add(summaryDetails);
@@ -274,7 +282,8 @@ public class Transaksi extends JPanel {
         actionPanel.add(btnProses);
         actionPanel.add(Box.createRigidArea(new Dimension(0, 10)));
         actionPanel.add(btnBatalTrx);
-        actionPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 96));
+        // limit action panel width to fit right container
+        actionPanel.setMaximumSize(new Dimension(260, 96));
         summaryPanel.add(actionPanel);
 
         return summaryPanel;
@@ -335,6 +344,106 @@ public class Transaksi extends JPanel {
         symbols.setGroupingSeparator('.');
         DecimalFormat df = new DecimalFormat("#,###", symbols);
         return "Rp " + df.format(value);
+    }
+
+    // compute subtotal (sum harga*qty) from table
+    private long subtotalBeforeDiscount() {
+        long subtotal = 0;
+        for (int i = 0; i < transaksiTableModel.getRowCount(); i++) {
+            int qty = 0; try { qty = Integer.parseInt(transaksiTableModel.getValueAt(i, 3).toString()); } catch(Exception e) { qty = 0; }
+            long harga = parseRupiah(transaksiTableModel.getValueAt(i, 4).toString());
+            subtotal += harga * qty;
+        }
+        return subtotal;
+    }
+
+    // compute total diskon (sum diskon column) from table
+    private long totalDiskonValue() {
+        long totalDiskon = 0;
+        for (int i = 0; i < transaksiTableModel.getRowCount(); i++) {
+            try { totalDiskon += parseRupiah(transaksiTableModel.getValueAt(i, 5).toString()); } catch(Exception e) { }
+        }
+        return totalDiskon;
+    }
+
+    private boolean saveTransactionToDatabase(long grand, long bayar, long kembalian, String metode, long subtotalBefore, long totalDiskon) {
+        String idTransaksi = "TRX" + System.currentTimeMillis();
+        long taxable = Math.max(0, subtotalBefore - totalDiskon);
+        long pajak = Math.round(taxable * 0.11);
+
+        try (Connection c = KoneksiDatabase.getConnection()) {
+            c.setAutoCommit(false);
+
+            String insertPesanan = "INSERT INTO Pesanan (ID_Transaksi, Total_Bayar, Tunai, Kembalian, ID_Kasir, ID_Toko, metode_pembayaran, diskon, pajak) VALUES (?,?,?,?,?,?,?,?,?)";
+            try (PreparedStatement pst = c.prepareStatement(insertPesanan)) {
+                pst.setString(1, idTransaksi);
+                pst.setDouble(2, (double) grand);
+                pst.setDouble(3, (double) bayar);
+                pst.setDouble(4, (double) kembalian);
+                pst.setString(5, "K01");
+                pst.setString(6, "T01");
+                pst.setString(7, metode);
+                pst.setDouble(8, (double) totalDiskon);
+                pst.setDouble(9, (double) pajak);
+                pst.executeUpdate();
+            }
+
+            String insertDetail = "INSERT INTO Detail_Pesanan (ID_Transaksi, ID_Barang, Kuantitas, Subtotal) VALUES (?,?,?,?)";
+            try (PreparedStatement pstDet = c.prepareStatement(insertDetail)) {
+                for (int i = 0; i < transaksiTableModel.getRowCount(); i++) {
+                    String idBarang = transaksiTableModel.getValueAt(i, 1).toString();
+                    int qty = 0; try { qty = Integer.parseInt(transaksiTableModel.getValueAt(i, 3).toString()); } catch(Exception e) { qty = 0; }
+                    long sub = 0; try { sub = parseRupiah(transaksiTableModel.getValueAt(i, 6).toString()); } catch(Exception e) { sub = 0; }
+                    pstDet.setString(1, idTransaksi);
+                    pstDet.setString(2, idBarang);
+                    pstDet.setInt(3, qty);
+                    pstDet.setDouble(4, (double) sub);
+                    pstDet.addBatch();
+                }
+                pstDet.executeBatch();
+            }
+
+            c.commit();
+            return true;
+        } catch (Exception ex) {
+            try { /* try rollback if possible */ } catch (Exception e) {}
+            ex.printStackTrace();
+            return false;
+        }
+    }
+
+    private void processPaymentFromPanel() {
+        long subtotal = subtotalBeforeDiscount();
+        long totalDiskon = totalDiskonValue();
+        long taxable = Math.max(0, subtotal - totalDiskon);
+        long pajak = Math.round(taxable * 0.11);
+        long grand = taxable + pajak;
+
+        // update labels
+        lblSubtotal.setText(formatRupiah(subtotal));
+        lblTotalDiskon.setText(formatRupiah(totalDiskon));
+        lblPajak.setText(formatRupiah(pajak));
+        lblGrandTotal.setText(formatRupiah(grand));
+
+        String bayarStr = txtJumlahBayar.getText().replaceAll("[^0-9]", "");
+        long bayar = 0; if (!bayarStr.isEmpty()) try { bayar = Long.parseLong(bayarStr); } catch(Exception e) { bayar = 0; }
+
+        if (bayar < grand) {
+            JOptionPane.showMessageDialog(this, "Jumlah bayar kurang!");
+            return;
+        }
+
+        long kembalian = bayar - grand;
+
+        boolean saved = saveTransactionToDatabase(grand, bayar, kembalian, comboPayment.getSelectedItem().toString(), subtotal, totalDiskon);
+        if (saved) {
+            txtKembalian.setText(formatRupiah(kembalian));
+            JOptionPane.showMessageDialog(this, "Pembayaran berhasil. Kembalian: " + formatRupiah(kembalian));
+            transaksiTableModel.setRowCount(0);
+            resetForm();
+        } else {
+            JOptionPane.showMessageDialog(this, "Gagal menyimpan transaksi ke database.");
+        }
     }
 
     private void showPaymentDialog() {
@@ -404,11 +513,17 @@ public class Transaksi extends JPanel {
                 return;
             }
             long k = bayar - grand;
-            JOptionPane.showMessageDialog(dialog, "Pembayaran berhasil. Kembalian: " + formatRupiah(k));
-            // clear transaksi
-            transaksiTableModel.setRowCount(0);
-            resetForm();
-            dialog.dispose();
+            // try save to database
+            boolean saved = saveTransactionToDatabase(grand, bayar, k, cb.getSelectedItem().toString(), subtotalBeforeDiscount(), totalDiskonValue());
+            if (saved) {
+                JOptionPane.showMessageDialog(dialog, "Pembayaran berhasil. Kembalian: " + formatRupiah(k));
+                // clear transaksi
+                transaksiTableModel.setRowCount(0);
+                resetForm();
+                dialog.dispose();
+            } else {
+                JOptionPane.showMessageDialog(dialog, "Pembayaran gagal disimpan ke database.");
+            }
         });
 
         cancel.addActionListener(e -> dialog.dispose());
@@ -516,16 +631,32 @@ public class Transaksi extends JPanel {
 
     private void computeTotals() {
         int totalItems = 0;
-        long grand = 0;
+        long subtotalBeforeDiscount = 0;
+        long totalDiskon = 0;
+
         for (int i = 0; i < transaksiTableModel.getRowCount(); i++) {
             int qty = 0; try { qty = Integer.parseInt(transaksiTableModel.getValueAt(i, 3).toString()); } catch(Exception e) { qty = 0; }
             long harga = parseRupiah(transaksiTableModel.getValueAt(i, 4).toString());
-            long subtotal = harga * qty;
-            transaksiTableModel.setValueAt(formatRupiah(subtotal), i, 6);
+            long diskon = 0; // try parse diskon column if present
+            try { diskon = parseRupiah(transaksiTableModel.getValueAt(i, 5).toString()); } catch(Exception ex) { diskon = 0; }
+
+            long rowSubtotal = harga * qty - diskon;
+            if (rowSubtotal < 0) rowSubtotal = 0;
+            transaksiTableModel.setValueAt(formatRupiah(rowSubtotal), i, 6);
+
             totalItems += qty;
-            grand += subtotal;
+            subtotalBeforeDiscount += harga * qty;
+            totalDiskon += diskon;
         }
+
+        long taxable = Math.max(0, subtotalBeforeDiscount - totalDiskon);
+        long pajak = Math.round(taxable * 0.11);
+        long grand = taxable + pajak;
+
         setTotalItem(totalItems);
+        lblSubtotal.setText(formatRupiah(subtotalBeforeDiscount));
+        lblTotalDiskon.setText(formatRupiah(totalDiskon));
+        lblPajak.setText(formatRupiah(pajak));
         setGrandTotal(formatRupiah(grand));
     }
 

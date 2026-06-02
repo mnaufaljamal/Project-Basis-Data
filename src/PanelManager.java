@@ -21,6 +21,7 @@ public class PanelManager extends JFrame {
     private JPanel mainContent;
     private Map<String, JButton> menuButtons = new HashMap<>();
     private Transaksi transaksiPanel;
+    private PanelLaporan laporanPanel;
     
     private JTextField txtIdBarang, txtNama, searchField;
     private JComboBox<String> comboCategory;
@@ -152,6 +153,16 @@ public class PanelManager extends JFrame {
                 }
             }
         });
+
+        // Handle save/cancel from the embedded form (main panel)
+        btnSimpan.addActionListener(e -> {
+            boolean isUpdate = btnSimpan.getText().equalsIgnoreCase("Update");
+            if (saveBarang(isUpdate)) {
+                resetForm();
+            }
+        });
+
+        btnBatal.addActionListener(e -> resetForm());
     }
 
     private JPanel createSidebar() {
@@ -252,8 +263,9 @@ public class PanelManager extends JFrame {
         transaksiPanel = new Transaksi();
         mainContent.add(transaksiPanel, "transaksi");
 
-        // Placeholder for Laporan
-        mainContent.add(makePlaceholderPanel("Laporan"), "laporan");
+        // Laporan card
+        laporanPanel = new PanelLaporan();
+        mainContent.add(laporanPanel, "laporan");
 
         cardLayout.show(mainContent, "manajemen");
 
