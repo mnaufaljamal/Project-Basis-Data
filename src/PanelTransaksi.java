@@ -1,12 +1,38 @@
-import javax.swing.*;
-import javax.swing.border.EmptyBorder;
-import javax.swing.table.DefaultTableModel;
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dialog;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridLayout;
+import java.awt.RenderingHints;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
-import java.awt.event.*;
-import java.sql.*;
-import java.util.ArrayList;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JDialog;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
+import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
+import javax.swing.border.EmptyBorder;
+import javax.swing.table.DefaultTableModel;
 
 public class PanelTransaksi extends JPanel {
 
@@ -53,7 +79,7 @@ public class PanelTransaksi extends JPanel {
         contentArea.setBorder(new EmptyBorder(8, 20, 20, 20));
         contentArea.setBackground(COLOR_BACKGROUND);
 
-        JLabel pageTitle = new JLabel("Input Pesanan Transaksi Baru (POS)");
+        JLabel pageTitle = new JLabel("Input Pesanan Transaksi Baru");
         pageTitle.setFont(new Font("SansSerif", Font.BOLD, 20));
         contentArea.add(pageTitle, BorderLayout.NORTH);
 
@@ -80,6 +106,8 @@ public class PanelTransaksi extends JPanel {
         btnTambahPesanan = new JButton("Tambah Pesanan Baru");
         btnTambahPesanan.setBackground(COLOR_PRIMARY);
         btnTambahPesanan.setForeground(COLOR_WHITE);
+        btnTambahPesanan.setContentAreaFilled(true);
+        btnTambahPesanan.setBorderPainted(false);
         topBar.add(btnTambahPesanan, BorderLayout.WEST);
 
         JPanel rightTopBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
@@ -256,6 +284,8 @@ public class PanelTransaksi extends JPanel {
         };
         btnProses.setBackground(COLOR_PRIMARY);
         btnProses.setForeground(COLOR_WHITE);
+        btnProses.setContentAreaFilled(true);
+        btnProses.setBorderPainted(false);
         btnProses.setFocusPainted(false);
         btnProses.setBorder(new EmptyBorder(8, 12, 8, 12));
         btnProses.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
@@ -275,6 +305,8 @@ public class PanelTransaksi extends JPanel {
         btnBatalTrx.setBackground(new Color(220, 38, 38));
         btnBatalTrx.setForeground(COLOR_WHITE);
         btnBatalTrx.setFocusPainted(false);
+        btnBatalTrx.setContentAreaFilled(true);
+        btnBatalTrx.setBorderPainted(false);
         btnBatalTrx.setBorder(new EmptyBorder(8, 12, 8, 12));
         btnBatalTrx.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         btnBatalTrx.setAlignmentX(Component.CENTER_ALIGNMENT);

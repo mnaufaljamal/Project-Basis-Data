@@ -1,11 +1,11 @@
 import java.awt.*;
 import java.awt.event.*;
 import java.sql.*;
+import java.util.HashMap;
+import java.util.Map;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
-import java.util.HashMap;
-import java.util.Map;
 
 public class PanelManager extends JFrame {
 
@@ -20,7 +20,7 @@ public class PanelManager extends JFrame {
     private CardLayout cardLayout;
     private JPanel mainContent;
     private Map<String, JButton> menuButtons = new HashMap<>();
-    private Transaksi transaksiPanel;
+    private PanelTransaksi transaksiPanel;
     private PanelLaporan laporanPanel;
     
     private JTextField txtIdBarang, txtNama, searchField;
@@ -31,7 +31,7 @@ public class PanelManager extends JFrame {
     private String selectedIdBarang = ""; 
 
     public PanelManager() {
-        setTitle("Frenz Elektronik POS");
+        setTitle("Frenz Elektronik");
         setSize(1200, 760);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
@@ -172,7 +172,7 @@ public class PanelManager extends JFrame {
         sidebar.setPreferredSize(new Dimension(220, 0));
         sidebar.setBorder(new EmptyBorder(20, 10, 20, 10));
 
-        JLabel titleLabel = new JLabel("Frenz Elektronik POS");
+        JLabel titleLabel = new JLabel("Frenz Elektronik");
         titleLabel.setForeground(Color.WHITE);
         titleLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
         titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -260,7 +260,7 @@ public class PanelManager extends JFrame {
         mainContent.add(createManajemenPanel(), "manajemen");
 
         // Transaksi card (reuse Transaksi JPanel)
-        transaksiPanel = new Transaksi();
+        transaksiPanel = new PanelTransaksi();
         mainContent.add(transaksiPanel, "transaksi");
 
         // Laporan card
@@ -623,6 +623,8 @@ public class PanelManager extends JFrame {
         button.setForeground(COLOR_WHITE);
         button.setFocusPainted(false);
         button.setOpaque(true);
+        button.setContentAreaFilled(true);
+        button.setBorderPainted(false);
     }
 
     private void styleSecondaryButton(JButton button) {
@@ -630,6 +632,8 @@ public class PanelManager extends JFrame {
         button.setForeground(new Color(30, 41, 59));
         button.setFocusPainted(false);
         button.setOpaque(true);
+        button.setContentAreaFilled(true);
+        button.setBorderPainted(false);
     }
 
     private void styleDangerButton(JButton button) {
@@ -637,6 +641,8 @@ public class PanelManager extends JFrame {
         button.setForeground(COLOR_WHITE);
         button.setFocusPainted(false);
         button.setOpaque(true);
+        button.setContentAreaFilled(true);
+        button.setBorderPainted(false);
     }
 
     public static void main(String[] args) {
