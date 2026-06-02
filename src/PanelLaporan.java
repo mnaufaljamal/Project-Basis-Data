@@ -8,8 +8,8 @@ import javax.swing.table.DefaultTableModel;
 
 public class PanelLaporan extends JPanel {
 
-    private final Color COLOR_PRIMARY = new Color(37, 99, 235);     // Biru utama
-    private final Color COLOR_BACKGROUND = new Color(243, 244, 246);  // Abu-abu terang
+    private final Color COLOR_PRIMARY = new Color(37, 99, 235);    
+    private final Color COLOR_BACKGROUND = new Color(243, 244, 246);  
     private final Color COLOR_WHITE = Color.WHITE;
     private final Color COLOR_TEXT_MUTED = new Color(100, 116, 139);
 
