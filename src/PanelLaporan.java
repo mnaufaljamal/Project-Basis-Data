@@ -5,32 +5,44 @@ import java.sql.*;
 
 public class PanelLaporan extends JPanel {
 
-    JTable table;
-    DefaultTableModel model;
-    JTextField txtDari, txtSampai;
-    JButton btnTampil;
+    private JTable table;
+    private DefaultTableModel model;
+    private JTextField txtDari, txtSampai;
+    private JButton btnTampil;
 
-    Connection conn;
+    private Connection conn;
 
     public PanelLaporan() {
         setLayout(new BorderLayout());
 
-        connect();
+        koneksiDatabase();
+        initUI();
+    }
 
-        JPanel panelTop = new JPanel(new GridLayout(2,3));
-        panelTop.add(new JLabel("Dari (YYYY-MM-DD)"));
-        txtDari = new JTextField();
-        panelTop.add(txtDari);
+    private void koneksiDatabase() {
+        try {
+            conn = KoneksiDatabase.getConnection(); 
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "Koneksi gagal: " + e.getMessage());
+        }
+    }
 
-        panelTop.add(new JLabel("Sampai (YYYY-MM-DD)"));
-        txtSampai = new JTextField();
-        panelTop.add(txtSampai);
+    private void initUI() {
+
+        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+
+        topPanel.add(new JLabel("Dari (YYYY-MM-DD):"));
+        txtDari = new JTextField(10);
+        topPanel.add(txtDari);
+
+        topPanel.add(new JLabel("Sampai:"));
+        txtSampai = new JTextField(10);
+        topPanel.add(txtSampai);
 
         btnTampil = new JButton("Tampilkan");
-        panelTop.add(new JLabel());
-        panelTop.add(btnTampil);
+        topPanel.add(btnTampil);
 
-        add(panelTop, BorderLayout.NORTH);
+        add(topPanel, BorderLayout.NORTH);
 
         model = new DefaultTableModel();
         model.addColumn("ID Transaksi");
@@ -45,37 +57,32 @@ public class PanelLaporan extends JPanel {
         btnTampil.addActionListener(e -> loadData());
     }
 
-    void connect() {
-        try {
-            conn = DriverManager.getConnection(
-                "jdbc:mysql://localhost:3306/nama_db", "root", "");
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "Koneksi gagal");
-        }
-    }
-
-    void loadData() {
+    private void loadData() {
         model.setRowCount(0);
 
-        if (txtDari.getText().isEmpty() || txtSampai.getText().isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Tanggal tidak boleh kosong!");
+        String dari = txtDari.getText().trim();
+        String sampai = txtSampai.getText().trim();
+
+        if (dari.isEmpty() || sampai.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Isi tanggal terlebih dahulu!");
             return;
         }
 
         try {
             String sql =
-                "SELECT t.id_transaksi, t.tanggal_transaksi, p.nama_pelanggan, t.total_harga, t.metode_pembayaran " +
+                "SELECT t.id_transaksi, t.tanggal_transaksi, " +
+                "p.nama_pelanggan, t.total_harga, t.metode_pembayaran " +
                 "FROM transaksi t " +
                 "JOIN pelanggan p ON t.id_pelanggan = p.id_pelanggan " +
-                "WHERE DATE(t.tanggal_transaksi) BETWEEN ? AND ?";
+                "WHERE CAST(t.tanggal_transaksi AS DATE) BETWEEN ? AND ?";
 
             PreparedStatement ps = conn.prepareStatement(sql);
-            ps.setString(1, txtDari.getText());
-            ps.setString(2, txtSampai.getText());
+            ps.setString(1, dari);
+            ps.setString(2, sampai);
 
             ResultSet rs = ps.executeQuery();
 
-            double grandTotal = 0;
+            double totalSemua = 0;
 
             while (rs.next()) {
                 model.addRow(new Object[]{
@@ -86,15 +93,15 @@ public class PanelLaporan extends JPanel {
                     rs.getString("metode_pembayaran")
                 });
 
-                grandTotal += rs.getDouble("total_harga");
+                totalSemua += rs.getDouble("total_harga");
             }
 
             JOptionPane.showMessageDialog(this,
-                "Total Pendapatan: " + grandTotal);
+                "Total Pendapatan: " + totalSemua);
 
         } catch (Exception e) {
             JOptionPane.showMessageDialog(this,
-                "Error: " + e.getMessage());
+                "Gagal load data: " + e.getMessage());
         }
     }
 }
