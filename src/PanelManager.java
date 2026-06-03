@@ -154,15 +154,6 @@ public class PanelManager extends JFrame {
             }
         });
 
-        // Handle save/cancel from the embedded form (main panel)
-        btnSimpan.addActionListener(e -> {
-            boolean isUpdate = btnSimpan.getText().equalsIgnoreCase("Update");
-            if (saveBarang(isUpdate)) {
-                resetForm();
-            }
-        });
-
-        btnBatal.addActionListener(e -> resetForm());
     }
 
     private JPanel createSidebar() {
@@ -179,7 +170,7 @@ public class PanelManager extends JFrame {
         sidebar.add(titleLabel);
         sidebar.add(Box.createRigidArea(new Dimension(0, 30)));
 
-        String[] menus = {"Manajemen Barang", "Transaksi (Struk)", "Laporan"};
+        String[] menus = {"Barang", "Transaksi", "Laporan"};
         for (String menu : menus) {
             JButton btn = new JButton(menu);
             btn.setMaximumSize(new Dimension(220, 48));
@@ -198,22 +189,26 @@ public class PanelManager extends JFrame {
             sidebar.add(Box.createRigidArea(new Dimension(0, 8)));
         }
         // set initial selected menu style
-        applySelectedStyle("Manajemen Barang");
+        applySelectedStyle("Barang");
         return sidebar;
     }
 
     private void handleMenuClick(String menu) {
         // update cards and selected styles
         switch (menu) {
-            case "Manajemen Barang":
+            case "Barang":
                 cardLayout.show(mainContent, "manajemen");
+                tampilTabel();
                 break;
-            case "Transaksi (Struk)":
+            case "Transaksi":
                 cardLayout.show(mainContent, "transaksi");
                 break;
             
             case "Laporan":
                 cardLayout.show(mainContent, "laporan");
+                if (laporanPanel != null) {
+                    laporanPanel.refreshData();
+                }
                 break;
             default:
                 break;
@@ -282,12 +277,7 @@ public class PanelManager extends JFrame {
         pageTitle.setFont(new Font("SansSerif", Font.BOLD, 20));
         contentArea.add(pageTitle, BorderLayout.NORTH);
 
-        JPanel splitPanel = new JPanel(new BorderLayout(20, 0));
-        splitPanel.setBackground(COLOR_BACKGROUND);
-        splitPanel.add(createTablePanel(), BorderLayout.CENTER);
-        splitPanel.add(createFormPanel(), BorderLayout.EAST);
-
-        contentArea.add(splitPanel, BorderLayout.CENTER);
+        contentArea.add(createTablePanel(), BorderLayout.CENTER);
         return contentArea;
     }
 
@@ -355,7 +345,7 @@ public class PanelManager extends JFrame {
         
         JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         actionPanel.setBackground(COLOR_WHITE);
-        btnCreate = new JButton("Create");
+        btnCreate = new JButton("Tambah Barang");
         btnUpdate = new JButton("Update");
         btnDelete = new JButton("Delete");
         stylePrimaryButton(btnCreate);
@@ -395,7 +385,7 @@ public class PanelManager extends JFrame {
         rightContainer.setBackground(COLOR_WHITE);
         rightContainer.setPreferredSize(new Dimension(300, 0));
 
-        JLabel titleLabel = new JLabel("Manajemen Data Barang");
+        JLabel titleLabel = new JLabel("Form Data Barang");
         titleLabel.setFont(new Font("SansSerif", Font.BOLD, 16));
         titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         rightContainer.add(titleLabel);
@@ -410,7 +400,7 @@ public class PanelManager extends JFrame {
             new EmptyBorder(15, 15, 15, 15)
         ));
 
-        JLabel formTitle = new JLabel("Form Data Barang");
+        JLabel formTitle = new JLabel("Isi Data Barang");
         formTitle.setFont(new Font("SansSerif", Font.BOLD, 14));
         formTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
         formPanel.add(formTitle);
@@ -472,7 +462,7 @@ public class PanelManager extends JFrame {
     }
 
     private void showBarangDialog(boolean isUpdate) {
-        JDialog dialog = new JDialog(this, isUpdate ? "Update Barang" : "Create Barang", true);
+        JDialog dialog = new JDialog(this, isUpdate ? "Update Barang" : "Tambah Barang", true);
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         dialog.setContentPane(createFormPanel());
         dialog.pack();

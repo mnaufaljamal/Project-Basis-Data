@@ -1,4 +1,6 @@
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.sql.*;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -14,13 +16,15 @@ public class PanelLaporan extends JPanel {
     private final Color COLOR_WHITE = Color.WHITE;
     private final Color COLOR_TEXT_MUTED = new Color(100, 116, 139);
 
-    private JTable tableLaporan;
-    private DefaultTableModel tableModelLaporan;
+    private JTable tableLaporan, tableDetailPesanan;
+    private DefaultTableModel tableModelLaporan, tableModelDetailPesanan;
     private JTextField txtSearch;
     private JComboBox<String> comboMetodeFilter;
-    private JButton btnCari, btnRefresh;
+    private JButton btnCari, btnRefresh, btnBackDetail;
 
     private JLabel lblTotalPendapatan, lblTotalTransaksi, lblRataRataTransaksi;
+    private JLabel lblDetailTitle, lblDetailSummary;
+    private JPanel detailPesananPanel;
 
     private PanelGrafik panelGrafikBatang;
 
@@ -36,6 +40,10 @@ public class PanelLaporan extends JPanel {
         add(createContentArea(), BorderLayout.CENTER);
 
         initEventHandlers();
+        muatDataLaporan();
+    }
+
+    public void refreshData() {
         muatDataLaporan();
     }
 
@@ -57,6 +65,9 @@ public class PanelLaporan extends JPanel {
 
         panelGrafikBatang = new PanelGrafik();
         mainLayout.add(panelGrafikBatang);
+        mainLayout.add(Box.createRigidArea(new Dimension(0, 15)));
+
+        mainLayout.add(createDetailPesananPanel());
         mainLayout.add(Box.createRigidArea(new Dimension(0, 15)));
 
         mainLayout.add(createTableLaporanPanel());
@@ -107,6 +118,52 @@ public class PanelLaporan extends JPanel {
         card.add(valueLabel);
         
         return card;
+    }
+
+    private JPanel createDetailPesananPanel() {
+        detailPesananPanel = new JPanel(new BorderLayout(0, 12));
+        detailPesananPanel.setBackground(COLOR_WHITE);
+        detailPesananPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(220, 220, 220), 1),
+            new EmptyBorder(15, 15, 15, 15)
+        ));
+        detailPesananPanel.setPreferredSize(new Dimension(1000, 230));
+        detailPesananPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 230));
+
+        JPanel topBar = new JPanel(new BorderLayout());
+        topBar.setBackground(COLOR_WHITE);
+
+        JPanel titlePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        titlePanel.setBackground(COLOR_WHITE);
+
+        btnBackDetail = new JButton("Kembali");
+        styleSecondaryButton(btnBackDetail);
+        titlePanel.add(btnBackDetail);
+
+        lblDetailTitle = new JLabel("Detail Pesanan");
+        lblDetailTitle.setFont(new Font("SansSerif", Font.BOLD, 14));
+        titlePanel.add(lblDetailTitle);
+        topBar.add(titlePanel, BorderLayout.WEST);
+
+        lblDetailSummary = new JLabel("Pilih transaksi untuk melihat detail pesanan");
+        lblDetailSummary.setForeground(COLOR_TEXT_MUTED);
+        topBar.add(lblDetailSummary, BorderLayout.EAST);
+        detailPesananPanel.add(topBar, BorderLayout.NORTH);
+
+        String[] columns = {"ID Barang", "Nama Barang", "Qty", "Harga Satuan", "Subtotal"};
+        tableModelDetailPesanan = new DefaultTableModel(new Object[][]{}, columns) {
+            @Override
+            public boolean isCellEditable(int row, int column) { return false; }
+        };
+
+        tableDetailPesanan = new JTable(tableModelDetailPesanan);
+        tableDetailPesanan.setRowHeight(28);
+        tableDetailPesanan.getTableHeader().setBackground(new Color(226, 232, 240));
+        tableDetailPesanan.getTableHeader().setFont(new Font("SansSerif", Font.BOLD, 12));
+        detailPesananPanel.add(new JScrollPane(tableDetailPesanan), BorderLayout.CENTER);
+
+        detailPesananPanel.setVisible(false);
+        return detailPesananPanel;
     }
 
     private JPanel createTableLaporanPanel() {
@@ -171,10 +228,22 @@ public class PanelLaporan extends JPanel {
             comboMetodeFilter.setSelectedIndex(0);
             muatDataLaporan();
         });
+        btnBackDetail.addActionListener(e -> sembunyikanDetailPesanan());
+        tableLaporan.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                int row = tableLaporan.getSelectedRow();
+                if (row != -1) {
+                    String idTransaksi = tableLaporan.getValueAt(row, 0).toString();
+                    muatDetailPesanan(idTransaksi);
+                }
+            }
+        });
     }
 
     private void muatDataLaporan() {
         tableModelLaporan.setRowCount(0);
+        sembunyikanDetailPesanan();
         
         String keyword = txtSearch.getText().trim();
         String filterMetode = comboMetodeFilter.getSelectedItem().toString();
@@ -186,12 +255,20 @@ public class PanelLaporan extends JPanel {
         ArrayList<String> daftarLabelId = new ArrayList<>();
 
         try (Connection conn = KoneksiDatabase.getConnection()) {
-            StringBuilder sql = new StringBuilder("SELECT ID_Transaksi, Total_Bayar, Tunai, Kembalian, metode_pembayaran, diskon, pajak FROM Pesanan WHERE 1=1");
+            boolean adaMetodePembayaran = columnExists(conn, "Pesanan", "metode_pembayaran");
+            boolean adaDiskon = columnExists(conn, "Pesanan", "diskon");
+            boolean adaPajak = columnExists(conn, "Pesanan", "pajak");
+
+            StringBuilder sql = new StringBuilder("SELECT ID_Transaksi, Total_Bayar, Tunai, Kembalian");
+            if (adaMetodePembayaran) sql.append(", metode_pembayaran");
+            if (adaDiskon) sql.append(", diskon");
+            if (adaPajak) sql.append(", pajak");
+            sql.append(" FROM Pesanan WHERE 1=1");
             
             if (!keyword.isEmpty()) {
                 sql.append(" AND ID_Transaksi LIKE ?");
             }
-            if (!filterMetode.equals("Semua Metode")) {
+            if (adaMetodePembayaran && !filterMetode.equals("Semua Metode")) {
                 sql.append(" AND metode_pembayaran = ?");
             }
             sql.append(" ORDER BY ID_Transaksi DESC");
@@ -199,12 +276,15 @@ public class PanelLaporan extends JPanel {
             try (PreparedStatement pst = conn.prepareStatement(sql.toString())) {
                 int paramIndex = 1;
                 if (!keyword.isEmpty()) pst.setString(paramIndex++, "%" + keyword + "%");
-                if (!filterMetode.equals("Semua Metode")) pst.setString(paramIndex++, filterMetode);
+                if (adaMetodePembayaran && !filterMetode.equals("Semua Metode")) pst.setString(paramIndex++, filterMetode);
 
                 try (ResultSet rs = pst.executeQuery()) {
                     while (rs.next()) {
                         double totalBayar = rs.getDouble("Total_Bayar");
                         String idTrx = rs.getString("ID_Transaksi");
+                        String metodePembayaran = adaMetodePembayaran ? rs.getString("metode_pembayaran") : "-";
+                        double diskon = adaDiskon ? rs.getDouble("diskon") : 0;
+                        double pajak = adaPajak ? rs.getDouble("pajak") : 0;
                         
                         totalPendapatan += (long) totalBayar;
                         totalTransaksi++;
@@ -219,9 +299,9 @@ public class PanelLaporan extends JPanel {
                             formatRupiah((long) totalBayar),
                             formatRupiah((long) rs.getDouble("Tunai")),
                             formatRupiah((long) rs.getDouble("Kembalian")),
-                            rs.getString("metode_pembayaran"),
-                            formatRupiah((long) rs.getDouble("diskon")),
-                            formatRupiah((long) rs.getDouble("pajak"))
+                            metodePembayaran,
+                            formatRupiah((long) diskon),
+                            formatRupiah((long) pajak)
                         });
                     }
                 }
@@ -237,6 +317,75 @@ public class PanelLaporan extends JPanel {
         } catch (ClassNotFoundException | SQLException e) {
             JOptionPane.showMessageDialog(this, "Koneksi Error: " + e.getMessage());
         }
+    }
+
+    private boolean columnExists(Connection conn, String tableName, String columnName) throws SQLException {
+        String sql = "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ? AND COLUMN_NAME = ?";
+        try (PreparedStatement pst = conn.prepareStatement(sql)) {
+            pst.setString(1, tableName);
+            pst.setString(2, columnName);
+            try (ResultSet rs = pst.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    private void muatDetailPesanan(String idTransaksi) {
+        tableModelDetailPesanan.setRowCount(0);
+        long totalDetail = 0;
+        int totalItem = 0;
+
+        try (Connection conn = KoneksiDatabase.getConnection()) {
+            String sql =
+                "SELECT d.ID_Barang, b.Nama_Barang, d.Kuantitas, b.Harga_Satuan, d.Subtotal " +
+                "FROM Detail_Pesanan d " +
+                "LEFT JOIN Barang b ON d.ID_Barang = b.ID_Barang " +
+                "WHERE d.ID_Transaksi = ? " +
+                "ORDER BY d.ID_Detail";
+
+            try (PreparedStatement pst = conn.prepareStatement(sql)) {
+                pst.setString(1, idTransaksi);
+
+                try (ResultSet rs = pst.executeQuery()) {
+                    while (rs.next()) {
+                        int qty = rs.getInt("Kuantitas");
+                        long harga = (long) rs.getDouble("Harga_Satuan");
+                        long subtotal = (long) rs.getDouble("Subtotal");
+
+                        totalItem += qty;
+                        totalDetail += subtotal;
+
+                        tableModelDetailPesanan.addRow(new Object[]{
+                            rs.getString("ID_Barang"),
+                            rs.getString("Nama_Barang"),
+                            qty,
+                            formatRupiah(harga),
+                            formatRupiah(subtotal)
+                        });
+                    }
+                }
+            }
+
+            lblDetailTitle.setText("Detail Pesanan - " + idTransaksi);
+            lblDetailSummary.setText(totalItem + " item | Total Detail " + formatRupiah(totalDetail));
+            detailPesananPanel.setVisible(true);
+            detailPesananPanel.revalidate();
+            detailPesananPanel.repaint();
+        } catch (ClassNotFoundException | SQLException e) {
+            JOptionPane.showMessageDialog(this, "Gagal memuat detail pesanan: " + e.getMessage());
+        }
+    }
+
+    private void sembunyikanDetailPesanan() {
+        if (detailPesananPanel == null || tableModelDetailPesanan == null) {
+            return;
+        }
+
+        tableModelDetailPesanan.setRowCount(0);
+        lblDetailTitle.setText("Detail Pesanan");
+        lblDetailSummary.setText("Pilih transaksi untuk melihat detail pesanan");
+        tableLaporan.clearSelection();
+        detailPesananPanel.setVisible(false);
     }
 
     private String formatRupiah(long value) {
