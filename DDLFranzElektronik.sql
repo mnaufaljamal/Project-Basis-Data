@@ -37,6 +37,10 @@ CREATE TABLE Pesanan (
     FOREIGN KEY (ID_Toko) REFERENCES Toko(ID_Toko)
 );
 
+-- sequence untuk ID transaksi (TRX000001, TRX000002, ...)
+CREATE SEQUENCE seqPesanan START WITH 1 INCREMENT BY 1;
+go
+
 CREATE TABLE Detail_Pesanan (
     ID_Detail INT IDENTITY(1,1) PRIMARY KEY,
     ID_Transaksi VARCHAR(20),

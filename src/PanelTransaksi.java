@@ -13,10 +13,13 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.Statement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -59,7 +62,6 @@ public class PanelTransaksi extends JPanel {
         add(createHeader(), BorderLayout.NORTH);
         add(createContentArea(), BorderLayout.CENTER);
 
-        // wire payment actions
         btnProses.addActionListener(e -> processPaymentFromPanel());
         btnBatalTrx.addActionListener(e -> {
             if (transaksiTableModel != null) transaksiTableModel.setRowCount(0);
@@ -72,7 +74,6 @@ public class PanelTransaksi extends JPanel {
     private JPanel createHeader() {
         JPanel header = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 4));
         header.setBackground(COLOR_WHITE);
-        // header kasir removed (managed in main frame)
         header.setPreferredSize(new Dimension(0, 8));
         return header;
     }
@@ -351,7 +352,6 @@ public class PanelTransaksi extends JPanel {
         actionPanel.add(btnProses);
         actionPanel.add(Box.createRigidArea(new Dimension(0, 10)));
         actionPanel.add(btnBatalTrx);
-        // limit action panel width to fit right container
         actionPanel.setMaximumSize(new Dimension(260, 96));
         summaryPanel.add(actionPanel);
 
@@ -453,7 +453,7 @@ public class PanelTransaksi extends JPanel {
 
     private boolean saveTransactionToDatabase(long grand, long bayar, long kembalian, String metode, long subtotalBefore, long totalDiskon) {
         lastTransactionError = "";
-        String idTransaksi = "TRX" + System.currentTimeMillis();
+        String idTransaksi = null;
         long taxable = Math.max(0, subtotalBefore - totalDiskon);
         long pajak = Math.round(taxable * 0.11);
         Connection c = null;
@@ -461,6 +461,13 @@ public class PanelTransaksi extends JPanel {
         try {
             c = KoneksiDatabase.getConnection();
             c.setAutoCommit(false);
+
+            try {
+                long seq = getNextSequenceValue(c);
+                idTransaksi = String.format("TRX%06d", seq);
+            } catch (SQLException seqEx) {
+                idTransaksi = "TRX" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
+            }
 
             Object idKasir = firstValue(c, "Kasir", "ID_Kasir");
             Object idToko = firstValue(c, "Toko", "ID_Toko");
@@ -551,6 +558,27 @@ public class PanelTransaksi extends JPanel {
                 }
             }
         }
+    }
+
+    private long getNextSequenceValue(Connection c) throws SQLException {
+        // Try to get next value; if sequence does not exist, create it then get value
+        String nextSql = "SELECT NEXT VALUE FOR seqPesanan AS seq";
+        try (PreparedStatement pst = c.prepareStatement(nextSql)) {
+            try (ResultSet rs = pst.executeQuery()) {
+                if (rs.next()) return rs.getLong("seq");
+            }
+        } catch (SQLException ex) {
+            // create sequence and retry
+            try (Statement st = c.createStatement()) {
+                st.execute("CREATE SEQUENCE seqPesanan START WITH 1 INCREMENT BY 1;");
+            }
+            try (PreparedStatement pst2 = c.prepareStatement(nextSql)) {
+                try (ResultSet rs2 = pst2.executeQuery()) {
+                    if (rs2.next()) return rs2.getLong("seq");
+                }
+            }
+        }
+        throw new SQLException("Unable to obtain sequence value for seqPesanan");
     }
 
     private Object firstValue(Connection c, String tableName, String columnName) throws SQLException {
