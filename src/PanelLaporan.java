@@ -20,7 +20,7 @@ public class PanelLaporan extends JPanel {
     private DefaultTableModel tableModelLaporan, tableModelDetailPesanan;
     private JTextField txtSearch;
     private JComboBox<String> comboMetodeFilter;
-    private JButton btnCari, btnRefresh, btnBackDetail;
+    private JButton btnCari, btnRefresh, btnBackDetail, btnHapusTransaksi;
 
     private JLabel lblTotalPendapatan, lblTotalTransaksi, lblRataRataTransaksi;
     private JLabel lblDetailTitle, lblDetailSummary;
@@ -138,6 +138,7 @@ public class PanelLaporan extends JPanel {
 
         btnBackDetail = new JButton("Kembali");
         styleSecondaryButton(btnBackDetail);
+        btnBackDetail.setPreferredSize(new Dimension(110, 30));
         titlePanel.add(btnBackDetail);
 
         lblDetailTitle = new JLabel("Detail Pesanan");
@@ -193,6 +194,9 @@ public class PanelLaporan extends JPanel {
         btnRefresh = new JButton("Reset");
         styleSecondaryButton(btnRefresh);
 
+        btnHapusTransaksi = new JButton("Hapus Transaksi");
+        styleDangerButton(btnHapusTransaksi);
+
         filterPanel.add(new JLabel("ID Transaksi:"));
         filterPanel.add(txtSearch);
         filterPanel.add(new JLabel("Metode:"));
@@ -201,6 +205,12 @@ public class PanelLaporan extends JPanel {
         filterPanel.add(btnRefresh);
 
         topBar.add(filterPanel, BorderLayout.WEST);
+
+        JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        actionPanel.setBackground(COLOR_WHITE);
+        actionPanel.add(btnHapusTransaksi);
+        topBar.add(actionPanel, BorderLayout.EAST);
+
         tablePanel.add(topBar, BorderLayout.NORTH);
 
         String[] columns = {"ID Transaksi", "Total Bayar", "Tunai", "Kembalian", "Metode Pembayaran", "Diskon", "Pajak"};
@@ -229,6 +239,7 @@ public class PanelLaporan extends JPanel {
             muatDataLaporan();
         });
         btnBackDetail.addActionListener(e -> sembunyikanDetailPesanan());
+        btnHapusTransaksi.addActionListener(e -> hapusTransaksiTerpilih());
         tableLaporan.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -319,6 +330,85 @@ public class PanelLaporan extends JPanel {
         }
     }
 
+    private void hapusTransaksiTerpilih() {
+        int row = tableLaporan.getSelectedRow();
+        if (row == -1) {
+            JOptionPane.showMessageDialog(this, "Pilih transaksi yang ingin dihapus terlebih dahulu.");
+            return;
+        }
+
+        String idTransaksi = tableLaporan.getValueAt(row, 0).toString();
+        hapusTransaksi(idTransaksi);
+    }
+
+    private void hapusTransaksi(String idTransaksi) {
+        int pilihan = JOptionPane.showConfirmDialog(
+            this,
+            "Yakin ingin menghapus transaksi " + idTransaksi + "?\nStok barang dari transaksi ini akan dikembalikan.",
+            "Konfirmasi Hapus Transaksi",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.WARNING_MESSAGE
+        );
+
+        if (pilihan != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        Connection conn = null;
+        try {
+            conn = KoneksiDatabase.getConnection();
+            conn.setAutoCommit(false);
+
+            String selectDetail = "SELECT ID_Barang, Kuantitas FROM Detail_Pesanan WHERE ID_Transaksi = ?";
+            String updateStok = "UPDATE Barang SET Stok = Stok + ? WHERE ID_Barang = ?";
+            try (PreparedStatement pstDetail = conn.prepareStatement(selectDetail);
+                 PreparedStatement pstStok = conn.prepareStatement(updateStok)) {
+
+                pstDetail.setString(1, idTransaksi);
+                try (ResultSet rs = pstDetail.executeQuery()) {
+                    while (rs.next()) {
+                        pstStok.setInt(1, rs.getInt("Kuantitas"));
+                        pstStok.setString(2, rs.getString("ID_Barang"));
+                        pstStok.executeUpdate();
+                    }
+                }
+            }
+
+            try (PreparedStatement pst = conn.prepareStatement("DELETE FROM Detail_Pesanan WHERE ID_Transaksi = ?")) {
+                pst.setString(1, idTransaksi);
+                pst.executeUpdate();
+            }
+
+            int deletedRows;
+            try (PreparedStatement pst = conn.prepareStatement("DELETE FROM Pesanan WHERE ID_Transaksi = ?")) {
+                pst.setString(1, idTransaksi);
+                deletedRows = pst.executeUpdate();
+            }
+
+            if (deletedRows == 0) {
+                throw new SQLException("Transaksi tidak ditemukan.");
+            }
+
+            conn.commit();
+            JOptionPane.showMessageDialog(this, "Transaksi berhasil dihapus.");
+            muatDataLaporan();
+        } catch (ClassNotFoundException | SQLException e) {
+            if (conn != null) {
+                try { conn.rollback(); } catch (SQLException rollbackEx) { rollbackEx.printStackTrace(); }
+            }
+            JOptionPane.showMessageDialog(this, "Gagal menghapus transaksi: " + e.getMessage());
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true);
+                    conn.close();
+                } catch (SQLException closeEx) {
+                    closeEx.printStackTrace();
+                }
+            }
+        }
+    }
+
     private boolean columnExists(Connection conn, String tableName, String columnName) throws SQLException {
         String sql = "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ? AND COLUMN_NAME = ?";
         try (PreparedStatement pst = conn.prepareStatement(sql)) {
@@ -398,16 +488,28 @@ public class PanelLaporan extends JPanel {
     private void stylePrimaryButton(JButton button) {
         button.setBackground(COLOR_PRIMARY);
         button.setForeground(COLOR_WHITE);
-        button.setPreferredSize(new Dimension(110, 30));
-        button.setFocusPainted(false);
-        button.setBorderPainted(false);
+        button.setPreferredSize(new Dimension(145, 30));
+        applyButtonBaseStyle(button);
     }
 
     private void styleSecondaryButton(JButton button) {
         button.setBackground(new Color(226, 232, 240));
         button.setForeground(new Color(30, 41, 59));
-        button.setPreferredSize(new Dimension(80, 30));
+        button.setPreferredSize(new Dimension(110, 30));
+        applyButtonBaseStyle(button);
+    }
+
+    private void styleDangerButton(JButton button) {
+        button.setBackground(new Color(220, 38, 38));
+        button.setForeground(COLOR_WHITE);
+        button.setPreferredSize(new Dimension(185, 30));
+        applyButtonBaseStyle(button);
+    }
+
+    private void applyButtonBaseStyle(JButton button) {
         button.setFocusPainted(false);
+        button.setOpaque(true);
+        button.setContentAreaFilled(true);
         button.setBorderPainted(false);
     }
 

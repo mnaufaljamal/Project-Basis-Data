@@ -54,6 +54,7 @@ public class PanelTransaksi extends JPanel {
     private JTextField txtJumlahBayar, txtKembalian, txtDiskon;
     private JButton btnTambahPesanan, btnProses, btnBatalTrx;
     private String lastTransactionError = "";
+    private String selectedKasirId = "";
 
     public PanelTransaksi() {
         setLayout(new BorderLayout());
@@ -451,6 +452,14 @@ public class PanelTransaksi extends JPanel {
         return parseRupiah(txtDiskon == null ? "0" : txtDiskon.getText());
     }
 
+    public void setSelectedKasirId(String idKasir) {
+        selectedKasirId = idKasir == null ? "" : idKasir;
+    }
+
+    private String getSelectedKasirId() {
+        return selectedKasirId;
+    }
+
     private boolean saveTransactionToDatabase(long grand, long bayar, long kembalian, String metode, long subtotalBefore, long totalDiskon) {
         lastTransactionError = "";
         String idTransaksi = null;
@@ -469,11 +478,11 @@ public class PanelTransaksi extends JPanel {
                 idTransaksi = "TRX" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
             }
 
-            Object idKasir = firstValue(c, "Kasir", "ID_Kasir");
+            String idKasir = getSelectedKasirId();
             Object idToko = firstValue(c, "Toko", "ID_Toko");
 
-            if (idKasir == null) {
-                throw new SQLException("Data kasir belum ada di tabel Kasir.");
+            if (idKasir.isEmpty()) {
+                throw new SQLException("Pilih kasir terlebih dahulu. Jika daftar kasir kosong, tambahkan data di tabel Kasir.");
             }
             if (idToko == null) {
                 throw new SQLException("Data toko belum ada di tabel Toko.");
@@ -604,6 +613,10 @@ public class PanelTransaksi extends JPanel {
     private void processPaymentFromPanel() {
         if (transaksiTableModel.getRowCount() == 0) {
             JOptionPane.showMessageDialog(this, "Belum ada barang di transaksi.");
+            return;
+        }
+        if (getSelectedKasirId().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Pilih kasir terlebih dahulu. Jika daftar kasir kosong, tambahkan data di tabel Kasir.");
             return;
         }
 

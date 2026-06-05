@@ -22,6 +22,7 @@ public class PanelManager extends JFrame {
     private Map<String, JButton> menuButtons = new HashMap<>();
     private PanelTransaksi transaksiPanel;
     private PanelLaporan laporanPanel;
+    private JComboBox<String> comboHeaderKasir;
     
     private JTextField txtIdBarang, txtNama, searchField;
     private JComboBox<String> comboCategory;
@@ -202,6 +203,7 @@ public class PanelManager extends JFrame {
                 break;
             case "Transaksi":
                 cardLayout.show(mainContent, "transaksi");
+                refreshHeaderKasirOptions();
                 break;
             
             case "Laporan":
@@ -256,6 +258,7 @@ public class PanelManager extends JFrame {
 
         // Transaksi card (reuse Transaksi JPanel)
         transaksiPanel = new PanelTransaksi();
+        syncSelectedKasirToTransaksi();
         mainContent.add(transaksiPanel, "transaksi");
 
         // Laporan card
@@ -295,7 +298,7 @@ public class PanelManager extends JFrame {
         JPanel profile = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         profile.setBackground(COLOR_WHITE);
 
-        JLabel avatar = new JLabel("E", SwingConstants.CENTER);
+        JLabel avatar = new JLabel("K", SwingConstants.CENTER);
         avatar.setPreferredSize(new Dimension(34, 34));
         avatar.setOpaque(true);
         avatar.setBackground(COLOR_PRIMARY);
@@ -306,18 +309,68 @@ public class PanelManager extends JFrame {
         textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
         textPanel.setBackground(COLOR_WHITE);
 
-        JLabel nameLabel = new JLabel("Erfan");
-        nameLabel.setFont(new Font("SansSerif", Font.BOLD, 13));
         JLabel roleLabel = new JLabel("Kasir Aktif");
-        roleLabel.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        roleLabel.setFont(new Font("SansSerif", Font.BOLD, 11));
         roleLabel.setForeground(new Color(100, 116, 139));
 
-        textPanel.add(nameLabel);
         textPanel.add(roleLabel);
+
+        comboHeaderKasir = new JComboBox<>();
+        comboHeaderKasir.setPreferredSize(new Dimension(180, 30));
+        comboHeaderKasir.addActionListener(e -> syncSelectedKasirToTransaksi());
+        refreshHeaderKasirOptions();
+
         profile.add(avatar);
         profile.add(textPanel);
-        profile.add(new JLabel("▼"));
+        profile.add(comboHeaderKasir);
         return profile;
+    }
+
+    private void refreshHeaderKasirOptions() {
+        if (comboHeaderKasir == null) {
+            return;
+        }
+
+        String selectedId = getSelectedHeaderKasirId();
+        comboHeaderKasir.removeAllItems();
+
+        try (Connection c = KoneksiDatabase.getConnection();
+             PreparedStatement pst = c.prepareStatement("SELECT ID_Kasir, Nama_Kasir FROM Kasir ORDER BY Nama_Kasir");
+             ResultSet rs = pst.executeQuery()) {
+
+            while (rs.next()) {
+                String idKasir = rs.getString("ID_Kasir");
+                String namaKasir = rs.getString("Nama_Kasir");
+                String itemKasir = idKasir + " - " + namaKasir;
+
+                comboHeaderKasir.addItem(itemKasir);
+                if (selectedId.equals(idKasir)) {
+                    comboHeaderKasir.setSelectedItem(itemKasir);
+                }
+            }
+        } catch (ClassNotFoundException e) {
+            JOptionPane.showMessageDialog(this, "Driver SQL Server tidak ditemukan: " + e.getMessage());
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Gagal memuat data kasir: " + e.getMessage());
+        }
+
+        syncSelectedKasirToTransaksi();
+    }
+
+    private String getSelectedHeaderKasirId() {
+        if (comboHeaderKasir == null || comboHeaderKasir.getSelectedItem() == null) {
+            return "";
+        }
+
+        String selected = comboHeaderKasir.getSelectedItem().toString();
+        int separatorIndex = selected.indexOf(" - ");
+        return separatorIndex == -1 ? selected : selected.substring(0, separatorIndex);
+    }
+
+    private void syncSelectedKasirToTransaksi() {
+        if (transaksiPanel != null) {
+            transaksiPanel.setSelectedKasirId(getSelectedHeaderKasirId());
+        }
     }
 
     private JPanel createTablePanel() {
